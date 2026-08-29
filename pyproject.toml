@@ -1,0 +1,41 @@
+[project]
+name = "grokbot-discord"
+version = "0.1.0"
+description = "Discord to Grok Bot bridge for private universal roaming Grok Bot control."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "discord.py>=2.4",
+    "aiohttp>=3.9",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+grokbot-discord = "grokbot_discord.bot:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "W"]
