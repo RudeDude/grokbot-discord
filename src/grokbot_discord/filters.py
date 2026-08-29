@@ -61,6 +61,7 @@ def should_drop(
     require_mention: bool,
     mapped_role_ids: set[str],
     dedupe: Dedupe,
+    named: bool = False,
 ) -> str | None:
     if msg.author_id == self_user_id:
         return "self"
@@ -73,7 +74,7 @@ def should_drop(
     if require_mention:
         mentioned_self = self_user_id in msg.mention_user_ids
         mentioned_role = bool(msg.mention_role_ids & mapped_role_ids)
-        if not mentioned_self and not mentioned_role:
+        if not mentioned_self and not mentioned_role and not named:
             return "mention"
     if dedupe.already_seen(msg.message_id):
         return "duplicate"

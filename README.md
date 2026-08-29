@@ -2,7 +2,9 @@
 
 Python Discord gateway for talking to Grok Bots from a private server. One Discord bot, many Grok Bots. Built so you can chat from a phone anywhere Discord works.
 
-Grok Bot has no Discord inbound plugin. A long-running process holds the Gateway, hears `@mentions`, POSTs a webhook ping to wake the target Grok Bot, then posts the reply when that bot calls back.
+Licensed under the [MIT License](LICENSE).
+
+Grok Bot has no Discord inbound plugin. A long-running process holds the Gateway, hears an address (a Discord `@mention`, a mapped role, or a leading bot name), replies **Got it.** immediately, POSTs a webhook ping to wake the target Grok Bot, then posts the real reply when that bot calls back.
 
 ```
 Discord  --gateway-->  Python process  --POST webhook-->  Grok Bot
@@ -11,7 +13,7 @@ Discord  --gateway-->  Python process  --POST webhook-->  Grok Bot
      +------ channel post -----+
 ```
 
-The webhook returns 200 when the Grok Bot *wakes*, not when it finishes. Replies are async.
+The webhook returns 200 when the Grok Bot *wakes*, not when it finishes. Replies are async. The pickup ack is not.
 
 ## 1. Discord application
 
@@ -31,6 +33,8 @@ On each Grok Bot:
 3. Open the routine panel. Copy the webhook URL (`https://api2.cursor.sh/automations/webhook/<id>`).
 4. Copy the sender key. Do not paste the key into chat or git.
 
+The Discord bridge already replies **Got it.** The webhook routine should send the real answer, not another pickup ack.
+
 ## 3. Local config
 
 ```bash
@@ -38,6 +42,7 @@ python3.12 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 cp .env.example .env
 cp bots.example.yaml bots.yaml
+chmod +x watch.sh ensure-up.sh
 ```
 
 Fill `.env`:
@@ -60,21 +65,32 @@ Empty allowlists refuse to start. Empty bots list refuses to start. Missing webh
 
 Logs `online as YourBot#1234` when the Gateway is up. The process also listens on `CALLBACK_BIND:CALLBACK_PORT` (default `127.0.0.1:8787`) for `/health` and `/reply`.
 
+Foreground is fine for a first test. For a crash loop, start the watchdog instead:
+
+```bash
+./ensure-up.sh
+```
+
+Confirm `bridge.log` contains `online as`. `watch.sh` restarts the gateway if it exits.
+
 Dry-run first, no Grok Bot keys required:
 
 ```bash
 DRY_RUN=true .venv/bin/python -m grokbot_discord
 ```
 
-Mentions are logged as would-POST. Nothing leaves the machine.
+Addressed messages are logged as would-POST. Nothing leaves the machine.
 
 ## 5. Talk to a bot
 
-In the allowlisted channel:
+In the allowlisted channel, any one of these wakes a Grok Bot. You do not need both a Discord `@` and the bot name.
 
-- `@bridge loops ping` — first token after the Discord bot mention is the Grok Bot name
+- `loops ping` or `@loops ping` — first token is a name or alias from `bots.yaml` (leading `@` is optional text, not a Discord mention)
+- `@bridge loops ping` — Discord `@mention` of this bot, then the Grok Bot name
 - mention a Discord role mapped in `bots.yaml`
 - `@bridge ping` — uses `DEFAULT_BOT` / `default:` in yaml if set
+
+The channel gets an instant **Got it.** then the real reply when the Grok Bot calls back.
 
 An unknown name does not fire a webhook. The channel gets `unknown bot. configured: …`.
 
@@ -82,13 +98,32 @@ An unknown name does not fire a webhook. The channel gets `unknown bot. configur
 
 Grok Bots on the same Linux machine should use `CALLBACK_PUBLIC_URL=http://127.0.0.1:8787`. If a Grok Bot is elsewhere, bind `CALLBACK_BIND=0.0.0.0` and set `CALLBACK_PUBLIC_URL` to an address that bot can reach (Tailscale is enough). Do not put the sender key or `CALLBACK_SECRET` in the browser or in git.
 
+## Discord bridge watchdog
+
+A scheduled Grok Bot routine named **discord bridge watchdog** is already saved on the live bot. That prompt was not previously in this repo.
+
+This tree now has the keep-alive from [discord-grok-bot-kit](https://github.com/larry-fuqua/discord-grok-bot-kit), adapted here:
+
+- `watch.sh` — restart loop if the gateway process dies
+- `ensure-up.sh` — start `watch.sh` if it is not running
+- [prompts/keep-alive-routine.md](prompts/keep-alive-routine.md) — in-repo copy of the watchdog prompt, so the live routine can be recreated if it drifts
+
+Point the existing **discord bridge watchdog** routine at `./ensure-up.sh` in this directory. Stay quiet if the listener is already up. Only message the owner if it could not be started.
+
+Optional cron if you do not want to rely on the Grok Bot schedule:
+
+```
+@reboot /path/to/grokbot-discord/ensure-up.sh
+15 8,12,16,20 * * * /path/to/grokbot-discord/ensure-up.sh
+```
+
 ## Routing and filters
 
 A message is dropped when:
 
 - the author is this Discord bot
 - guild, channel, or author is not allowlisted (allowlisted *bots* are accepted; there is no blanket `author.bot` drop)
-- `REQUIRE_MENTION=true` and neither this Discord bot nor a mapped role was mentioned
+- `REQUIRE_MENTION=true` and the message is not addressed: no Discord `@mention` of this bot, no mapped role mention, and the first token is not a configured bot name/alias
 - `message_id` was already handled
 - the channel already has `IN_FLIGHT_PER_CHANNEL` wakes waiting on a reply (default 2)
 
@@ -96,4 +131,6 @@ A message is dropped when:
 
 - `src/grokbot_discord/` — Gateway, filters, routing, webhook client, reply callback
 - `prompts/webhook-routine.md` — paste into each Grok Bot webhook routine
+- `prompts/keep-alive-routine.md` — in-repo copy of the **discord bridge watchdog** scheduled routine
+- `watch.sh`, `ensure-up.sh` — crash loop and start-if-missing
 - `.github/workflows/ci.yml` — `ruff` + `pytest` on PRs

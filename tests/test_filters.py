@@ -70,3 +70,19 @@ def test_in_flight_overflow():
     assert not inflight.acquire("c1")
     inflight.release("c1")
     assert inflight.acquire("c1")
+
+
+def test_leading_bot_name_counts_as_addressed():
+    kwargs = dict(
+        self_user_id="bridge",
+        guilds={"g1"},
+        channels={"c1"},
+        authors={"u1"},
+        require_mention=True,
+        mapped_role_ids=set(),
+        dedupe=Dedupe(),
+    )
+    named = make_msg(content="loops ping", mention_user_ids=frozenset(), message_id="m8")
+    assert should_drop(named, named=True, **kwargs) is None
+    stray = make_msg(content="hello there", mention_user_ids=frozenset(), message_id="m9")
+    assert should_drop(stray, named=False, **kwargs) == "mention"

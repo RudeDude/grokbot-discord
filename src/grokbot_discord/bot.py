@@ -13,11 +13,12 @@ from grokbot_discord.callback import build_app, start_site
 from grokbot_discord.config import ConfigError, Settings, load_settings
 from grokbot_discord.filters import Dedupe, InFlight, should_drop
 from grokbot_discord.models import IncomingMessage, WakePayload
-from grokbot_discord.routing import mapped_role_ids, route
+from grokbot_discord.routing import addressed_by_name, mapped_role_ids, route
 from grokbot_discord.split import split_message
 from grokbot_discord.webhook import DryRunResult, ping
 
 log = logging.getLogger("grokbot_discord")
+ACK_TEXT = "Got it."
 
 
 def _incoming(message: discord.Message) -> IncomingMessage:
@@ -71,6 +72,7 @@ class BridgeClient(discord.Client):
             return
         msg = _incoming(message)
         self_id = str(self.user.id)
+        named = addressed_by_name(msg.content, self.settings.bots, self_user_id=self_id)
         reason = should_drop(
             msg,
             self_user_id=self_id,
@@ -80,6 +82,7 @@ class BridgeClient(discord.Client):
             require_mention=self.settings.require_mention,
             mapped_role_ids=mapped_role_ids(self.settings.bots),
             dedupe=self.dedupe,
+            named=named,
         )
         if reason:
             return
@@ -95,6 +98,10 @@ class BridgeClient(discord.Client):
             return
         if not self.in_flight.acquire(msg.channel_id):
             return
+        try:
+            await message.reply(ACK_TEXT, mention_author=False)
+        except Exception:
+            log.exception("ack failed for message_id=%s", msg.message_id)
         correlation_id = uuid.uuid4().hex
         self.pending[correlation_id] = (msg.channel_id, msg.message_id)
         payload = WakePayload(

@@ -24,6 +24,26 @@ def _alias_map(bots: dict[str, BotSpec]) -> dict[str, BotSpec]:
     return out
 
 
+def _normalize_name_token(token: str) -> str:
+    return token.strip().lstrip("@").casefold()
+
+
+def addressed_by_name(content: str, bots: dict[str, BotSpec], *, self_user_id: str = "") -> bool:
+    """True when the first token is a configured bot name or alias (optional leading @)."""
+    if not bots:
+        return False
+    if self_user_id:
+        text = strip_user_mention(content, self_user_id).strip()
+    else:
+        text = (content or "").strip()
+    if not text:
+        return False
+    first, _, _ = text.partition(" ")
+    if first.startswith("<@"):
+        return False
+    return _normalize_name_token(first) in _alias_map(bots)
+
+
 def mapped_role_ids(bots: dict[str, BotSpec]) -> set[str]:
     return {b.role_id for b in bots.values() if b.role_id}
 
@@ -50,7 +70,7 @@ def route(
     aliases = _alias_map(bots)
     if text:
         first, _, rest = text.partition(" ")
-        hit = aliases.get(first.casefold())
+        hit = aliases.get(_normalize_name_token(first))
         if hit is not None:
             return Route(bot=hit, text=rest.strip())
 

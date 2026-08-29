@@ -3,6 +3,7 @@ name = "grokbot-discord"
 version = "0.1.0"
 description = "Discord to Grok Bot bridge for private universal roaming Grok Bot control."
 readme = "README.md"
+license = {file = "LICENSE"}
 requires-python = ">=3.12"
 dependencies = [
     "discord.py>=2.4",
