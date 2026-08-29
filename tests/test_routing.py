@@ -1,6 +1,5 @@
-from tests.conftest import make_msg
-
 from grokbot_discord.routing import route
+from tests.helpers import make_msg
 
 
 def test_alias_first_token(bots):

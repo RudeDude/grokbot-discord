@@ -1,6 +1,5 @@
-from tests.conftest import make_msg
-
 from grokbot_discord.filters import ConfigError, Dedupe, InFlight, require_allowlists, should_drop
+from tests.helpers import make_msg
 
 
 def test_empty_allowlists_fail_closed():
